@@ -121,8 +121,8 @@
                 alertMessage: '',
                 alertType: ''
             },
+            
             async mounted() {
-                     
                 await window.vkBridge.send('VKWebAppInit');
                 this.getUserInfo();
             },
@@ -142,14 +142,15 @@
                     }
                 },
                 async getAuthToken() {
-                    return window.vkBridge.send('VKWebAppGetAuthToken', {
+                    const response = await window.vkBridge.send('VKWebAppGetAuthToken', {
                         app_id: 51828629,
-                        scope: 'friends,status,groups'
+                        scope: 'groups,wall'
                     });
+                    return response.access_token;
                 },
                 async getGroups() {
                     try {
-                        await this.getAuthToken();
+                        const accessToken = await this.getAuthToken();
 
                         const response = await window.vkBridge.send('VKWebAppCallAPIMethod', {
                             method: 'groups.get',
@@ -157,6 +158,7 @@
                                 user_id: this.user.userId,
                                 extended: 1,
                                 fields: 'photo_50',
+                                access_token: accessToken,
                                 v: '5.131'
                             }
                         });
@@ -186,11 +188,12 @@
                     }
                 },
                 async getCommunityToken(groupId) {
-                    return window.vkBridge.send('VKWebAppGetCommunityToken', {
+                    const response = await window.vkBridge.send('VKWebAppGetCommunityToken', {
                         app_id: 51828629,
                         group_id: groupId,
                         scope: 'messages'
                     });
+                    return response;
                 },
                 showAlert(message, isError) {
                     this.alertMessage = message;
@@ -205,4 +208,4 @@
         });
     </script>
 </body>
-</html>   
+</html>
