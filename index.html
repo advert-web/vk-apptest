@@ -1,4 +1,4 @@
-            <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -12,7 +12,7 @@
             background-color: #f6f6f6;
             margin: 0;
             padding: 20px;
-            position: relative; /* Для позиционирования alert */
+            position: relative;
         }
         .profile, .groups {
             background: white;
@@ -53,7 +53,6 @@
         .button:hover {
             background-color: #0056b3;
         }
-        /* Стили для кастомного alert */
         .alert {
             position: fixed;
             bottom: 20px;
@@ -63,19 +62,19 @@
             color: white;
             border-radius: 5px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            display: none; /* Скрываем alert по умолчанию */
-            z-index: 1000; /* Поверх других элементов */
+            display: none;
+            z-index: 1000;
             transition: opacity 0.3s;
         }
         .alert.show {
             display: block;
-            opacity: 1; /* Появление при показе */
+            opacity: 1;
         }
         .alert.error {
-            background-color: #f44336; /* Красный фон для ошибок */
+            background-color: #f44336;
         }
         .alert.success {
-            background-color: #4CAF50; /* Зеленый фон для успешных действий */
+            background-color: #4CAF50;
         }
     </style>
 </head>
@@ -97,15 +96,13 @@
                     <span>{{ group.title }}</span>
                     <span v-if="group.connected">Подключена</span>
                     <span v-else>Не подключена</span>
-                    <button class="button" @click="connectGroup(group)">Подключить</button>
+                    <button class="button" @click="connectGroup(group)" :disabled="group.connected">Подключить</button>
                 </div>
             </div>
         </div>
 
-        <!-- Кастомный alert для ошибок и успешных действий -->
         <div class="alert" :class="['show', alertVisible ? 'show' : '', alertType]">
             {{ alertMessage }}
-            
         </div>
     </div>
 
@@ -119,34 +116,74 @@
                     userId: '',
                     cover: ''
                 },
-                groups: [], // Список групп
-                alertVisible: false, // Видимость alert
-                alertMessage: '', // Сообщение alert
-                alertType: '' // Тип alert: 'success' или 'error'
+                groups: [],
+                alertVisible: false,
+                alertMessage: '',
+                alertType: ''
             },
             async mounted() {
-                // Инициализация VK Bridge
+                     
                 await window.vkBridge.send('VKWebAppInit');
                 this.getUserInfo();
             },
             methods: {
                 async getUserInfo() {
-                    window.vkBridge.send('VKWebAppGetUserInfo').then(data => {
-                        // Обновляем данные пользователя с полученной информации
-                        this.user.firstName = data.first_name;
-                        this.user.lastName = data.last_name;
-                        this.user.userId = data.id;
-                        this.user.cover = data.photo_100; // Устанавливаем URL аватарки пользователя
-                    }).catch(error => {
+                    try {
+                        const data = await window.vkBridge.send('VKWebAppGetUserInfo');
+                        this.user = {
+                            firstName: data.first_name,
+                            lastName: data.last_name,
+                            userId: data.id,
+                            cover: data.photo_100
+                        };
+                    } catch (error) {
                         console.error(error);
                         this.showAlert('Не удалось получить информацию о пользователе', true);
-                    });
+                    }
                 },
                 async getAuthToken() {
-                    return window.vkBridge.send('VKWebAppGetAuthToken', { 
-                        app_id: 51828629, 
-                        scope: 'friends,status'
+                    return window.vkBridge.send('VKWebAppGetAuthToken', {
+                        app_id: 51828629,
+                        scope: 'friends,status,groups'
                     });
+                },
+                async getGroups() {
+                    try {
+                        await this.getAuthToken();
+
+                        const response = await window.vkBridge.send('VKWebAppCallAPIMethod', {
+                            method: 'groups.get',
+                            params: {
+                                user_id: this.user.userId,
+                                extended: 1,
+                                fields: 'photo_50',
+                                v: '5.131'
+                            }
+                        });
+
+                        this.groups = response.items.map(group => ({
+                            id: group.id,
+                            title: group.name,
+                            icon: group.photo_50,
+                            connected: false
+                        }));
+
+                        this.showAlert('Группы успешно получены!', false);
+                    } catch (error) {
+                        console.error(error);
+                        this.showAlert('Ошибка получения групп', true);
+                    }
+                },
+                async connectGroup(group) {
+                    try {
+                        const communityToken = await this.getCommunityToken(group.id);
+                        console.log('Ключ доступа сообщества получен:', communityToken.access_token);
+                        group.connected = true; 
+                        this.showAlert('Группа успешно подключена!', false);
+                    } catch (error) {
+                        console.error(error);
+                        this.showAlert('Ошибка подключения к группе', true);
+                    }
                 },
                 async getCommunityToken(groupId) {
                     return window.vkBridge.send('VKWebAppGetCommunityToken', {
@@ -155,56 +192,11 @@
                         scope: 'messages'
                     });
                 },
-                async getGroups() {
-                    try {
-                        // Получаем токен доступа
-                        await this.getAuthToken();
-
-                        // Запросить группы
-                        const response = await window.vkBridge.send('VKWebAppCallAPIMethod', {
-                            method: 'groups.get',
-                            params: {
-                                user_id: this.user.userId,
-                                extended: 1,
-                                fields: 'photo_50',
-                                v: '5.131' // Убедитесь, что используете актуальную версию API
-                            }
-                        });
-
-                        this.groups = response.items.map(group => ({
-                            id: group.id,
-                            title: group.name,
-                            icon: group.photo_50,
-                            connected: false // По умолчанию, не подключены
-                        }));
-
-                        this.showAlert('Группы успешно получены!', false); // Успешное сообщение
-                    } catch (error) {
-                        console.error(error);
-                        this.showAlert('Ошибка получения групп', true); // Ошибка
-                    }
-                },
-                async connectGroup(group) {
-                    try {
-                        // Получаем токен сообщества для выбранной группы
-                        const communityToken = await this.getCommunityToken(group.id);
-                        console.log('Ключ доступа сообщества получен:', communityToken.access_token);
-
-                        // Логика для подключения к группе...
-                        group.connected = true; // Пример, помечаем группу как подключенную
-                        this.showAlert('Группа успешно подключена!', false); // Успешное сообщение
-                    } catch (error) {
-                        console.error(error);
-                        this.showAlert('Ошибка подключения к группе', true); // Ошибка
-                    }
-                },
-                
                 showAlert(message, isError) {
                     this.alertMessage = message;
                     this.alertVisible = true;
-                    this.alertType = isError ? 'error' : 'success'; // Установка типа alert
+                    this.alertType = isError ? 'error' : 'success';
 
-                    // Скрываем alert через 5 секунд
                     setTimeout(() => {
                         this.alertVisible = false;
                     }, 5000);
@@ -213,4 +205,4 @@
         });
     </script>
 </body>
-</html>
+</html>   
