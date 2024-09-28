@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK Group Manager</title>
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f6f6f6;
+            margin: 0;
+            padding: 20px;
+            position: relative; /* Для позиционирования alert */
+        }
+        .profile, .groups {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+        .profile .avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .group-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eaeaea;
+        }
+        .group-item:last-child {
+            border-bottom: none;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 15px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            background-color: #007bff;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .button-secondary {
+            background-color: #6c757d;
+        }
+        .button-secondary:hover {
+            background-color: #5a6268;
+        }
+        /* Стили для кастомного alert */
+        .alert {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            padding: 15px;
+            background-color: #f44336; /* Красный фон для ошибок */
+            color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            display: none; /* Скрываем alert по умолчанию */
+            z-index: 1000; /* Поверх других элементов */
+            transition: opacity 0.3s;
+        }
+        .alert.show {
+            display: block;
+            opacity: 1; /* Появление при показе */
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="profile">
+            <div>
+                <img class="avatar" :src="user.photo_200" alt="Profile Avatar">
+                <span>{{ user.first_name }} {{ user.last_name }}</span>
+            </div>
+        </div>
+        <div class="groups">
+            <h2>Список групп</h2>
+            <div v-if="groups.length === 0">
+                <p>Список групп не найден</p>
+                <button class="button" @click="getGroups">Подключить группы</button>
+            </div>
+            <div v-else>
+                <div v-for="group in groups" :key="group.id" class="group-item">
+                    <img class="avatar" :src="group.icon" alt="Group Avatar">
+                    <span>{{ group.title }}</span>
+                    <span v-if="group.connected">Подключена</span>
+                    <span v-else>Не подключена</span>
+                    <button class="button" @click="connectGroup(group)">Подключить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Кастомный alert для ошибок -->
+        <div class="alert" :class="{ show: alertVisible }">
+            {{ alertMessage }}
+        </div>
+    </div>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data: {
+            	
+                user: {
+                    first_name: '',
+                    last_name: '',
+                    photo_200: ''
+                },
+                groups: [], // Список групп
+                alertVisible: false, // Видимость alert
+                alertMessage: '' // Сообщение alert
+            },
+            async mounted() {
+                // Инициализация VK Bridge
+                await window.vkBridge.send('VKWebAppInit');
+                this.getUserInfo();
+            },
+            methods: {
+                async getUserInfo() {
+                    try {
+                        const userInfo = await window.VKWebAppGetUserInfo();
+                        this.user = userInfo;
+                    } catch (error) {
+                        this.showAlert('Ошибка получения информации о пользователе: ' + error.message);
+                    }
+                },
+                async getGroups() {
+                    try {
+                        const tokenData = await window.VKWebAppGetAuthToken({ app_id: '51828629', scope: 'groups' });
+                        const accessToken = tokenData.access_token;
+
+                        // Здесь вы можете использовать accessToken для получения списка групп
+                        // Пример:
+                        this.groups = [
+                            { id: 1, title: 'Моя группа', icon: 'https://via.placeholder.com/50', connected: false },
+                            { id: 2, title: 'Другая группа', icon: 'https://via.placeholder.com/50', connected: true }
+                        ];
+                    } catch (error) {
+                        this.showAlert('Ошибка получения токена: ' + error.message);
+                    }
+                },
+                async connectGroup(group) {
+                    try {
+                        const tokenData = await window.VKWebAppGetCommunityToken({ group_id: group.id });
+                        const groupAccessToken = tokenData.access_token;
+
+                        console.log('Connected to group:', group.title);
+                        group.connected = true; // Обновляем состояние группы
+                    } catch (error) {
+                        this.showAlert('Ошибка получения токена сообщества: ' + error.message);
+                    }
+                },
+                showAlert(message) {
+                    this.alertMessage = message;
+                    this.alertVisible = true;
+
+                    // Скрываем alert через 5 секунд
+                    setTimeout(() => {
+                        this.alertVisible = false;
+                    }, 5000);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
